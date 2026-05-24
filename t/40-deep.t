@@ -21,12 +21,17 @@ use Net::Async::Crawl4AI;
 
   sub _init {
     my ( $self, $args ) = @_;
-    $self->{site} = delete $args->{site} || {};
+    $self->{site}    = delete $args->{site}   || {};
+    $self->{delays}  = delete $args->{delays} || {};   # url => seconds before answering
+    $self->{n_requests} = 0;
     $self->SUPER::_init($args);
   }
 
+  sub n_requests { $_[0]->{n_requests} }
+
   sub do_request {
     my ( $self, $req, $backend ) = @_;
+    $self->{n_requests}++;
     my $payload = decode_json( $req->content );
     my $url     = $payload->{urls}[0];
     my $links   = $self->{site}{$url} || [];
@@ -42,9 +47,11 @@ use Net::Async::Crawl4AI;
         },
       } ],
     } );
-    return Future->done(
-      HTTP::Response->new( 200, 'OK', [ 'Content-Type' => 'application/json' ], $body ),
-    );
+    my $response = HTTP::Response->new( 200, 'OK', [ 'Content-Type' => 'application/json' ], $body );
+    if ( my $delay = $self->{delays}{$url} ) {
+      return $self->loop->delay_future( after => $delay )->then( sub { Future->done($response) } );
+    }
+    return Future->done($response);
   }
 }
 
@@ -111,6 +118,29 @@ subtest 'deep_crawl same_host => 0 follows off-host links' => sub {
   )->get;
   is scalar @$results, 2, 'off-host followed when same_host disabled';
   ok( ( grep { $_->final_url eq 'https://ext.test/z' } @$results ), 'external page crawled' );
+};
+
+subtest 'deep_crawl returns breadth-first order even when a later page completes first' => sub {
+  my $site = {
+    'https://t.test/'  => [ 'https://t.test/b', 'https://t.test/c' ],
+    'https://t.test/b' => [],
+    'https://t.test/c' => [],
+  };
+  # b is enqueued before c, but c answers immediately while b is delayed.
+  my $c = site_crawler( $site, delays => { 'https://t.test/b' => 0.05 } );
+  my $results = $c->deep_crawl( 'https://t.test/', max_depth => 1, concurrency => 5 )->get;
+  is_deeply [ map { $_->final_url } @$results ],
+    [ 'https://t.test/', 'https://t.test/b', 'https://t.test/c' ],
+    'enqueue order preserved despite c completing before b';
+};
+
+subtest 'deep_crawl fires no requests beyond max_pages' => sub {
+  my %site = ( 'https://t.test/' => [ map { "https://t.test/p$_" } 1 .. 50 ] );
+  $site{"https://t.test/p$_"} = [] for 1 .. 50;
+  my $c = site_crawler( \%site );
+  my $results = $c->deep_crawl( 'https://t.test/', max_pages => 5, max_depth => 1, concurrency => 50 )->get;
+  is scalar @$results, 5, 'exactly max_pages results';
+  is $c->n_requests, 5, 'frontier trimmed: no requests past the budget';
 };
 
 subtest 'deep_crawl resolves to the same Result objects as a single crawl' => sub {

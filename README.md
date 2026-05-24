@@ -98,7 +98,7 @@ my $results = $crawler->deep_crawl(
   url_filter  => sub { $_[0] !~ m{/login} },
   on_page     => sub { my ($result, $depth) = @_ },
 )->get;
-# Future[ \@WWW::Crawl4AI::Result ] in visit order, first = start URL
+# Future[ \@WWW::Crawl4AI::Result ] in breadth-first order, first = start URL
 ```
 
 Same semantics as `WWW::Crawl4AI::deep_crawl` (BFS, fragment-stripped dedup,

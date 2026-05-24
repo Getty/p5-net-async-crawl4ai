@@ -163,10 +163,10 @@ The underlying L<Net::Async::HTTP> (lazily built and parented to this notifier).
 
 =cut
 
-sub _on_added_to_loop {
+sub _add_to_loop {
   my ( $self, $loop ) = @_;
-  $self->SUPER::_on_added_to_loop($loop) if $self->can('SUPER::_on_added_to_loop');
-  $self->http;
+  $self->SUPER::_add_to_loop($loop);
+  $self->http;  # build + parent the Net::Async::HTTP child eagerly
 }
 
 #----------------------------------------------------------------------
@@ -516,26 +516,32 @@ sub deep_crawl {
   my $on_page     = delete $opts{on_page};
   my $url_filter  = delete $opts{url_filter};
 
-  my $start_host = lc( eval { URI->new($start)->host } // '' );
-  my %seen       = ( $www->_canon_url($start) => 1 );
-  my @results;
+  my $start_host;  # locked onto the host the start URL actually resolved to
+  my %seen        = ( $www->_canon_url($start) => 1 );
+  my $seq         = 0;
+  my %collected;   # enqueue index => result, so the result list comes out in
+                   # breadth-first order regardless of which order a concurrent
+                   # frontier happens to complete in
 
   # Crawl one frontier level concurrently, gather the next level, recurse.
   my $process_level;
   $process_level = sub {
     my ( $frontier ) = @_;
-    return Future->done( \@results )
-      unless @$frontier && @results < $max_pages;
+    my $remaining = $max_pages - keys %collected;
+    return Future->done unless @$frontier && $remaining > 0;
+    # Trim to the budget up front so we never fire requests we'd only discard.
+    $frontier = [ @{$frontier}[ 0 .. $remaining - 1 ] ] if @$frontier > $remaining;
 
     my @next;
     my $level = fmap_void {
       my ( $node ) = @_;
-      return Future->done if @results >= $max_pages;
       $self->crawl( $node->{url}, %opts )->then( sub {
         my ( $result ) = @_;
-        return Future->done if @results >= $max_pages;
-        push @results, $result;
+        $collected{ $node->{seq} } = $result;
         $on_page->( $result, $node->{depth} ) if $on_page;
+        # Take the host from the start URL's actual final_url (depth 0), so a
+        # scheme-less start or a redirect to www. doesn't reject every link.
+        $start_host //= lc( eval { URI->new( $result->final_url // $node->{url} )->host } // '' );
         if ( $node->{depth} < $max_depth && $result->ok ) {
           for my $url ( @{ $result->urls } ) {
             my $canon = $www->_canon_url($url);
@@ -545,7 +551,7 @@ sub deep_crawl {
               next unless $host eq $start_host;
             }
             next if $url_filter && !$url_filter->($url);
-            push @next, { url => $url, depth => $node->{depth} + 1 };
+            push @next, { url => $url, depth => $node->{depth} + 1, seq => $seq++ };
           }
         }
         Future->done;
@@ -555,7 +561,10 @@ sub deep_crawl {
     return $level->then( sub { $process_level->( \@next ) } );
   };
 
-  return $process_level->( [ { url => $start, depth => 0 } ] );
+  my $f = $process_level->( [ { url => $start, depth => 0, seq => $seq++ } ] )
+    ->then( sub { Future->done( [ @collected{ sort { $a <=> $b } keys %collected } ] ) } );
+  $f->on_ready( sub { undef $process_level } );  # break the self-referential cycle
+  return $f;
 }
 
 =method deep_crawl
@@ -574,10 +583,12 @@ sub deep_crawl {
 
 Asynchronous breadth-first crawl that follows the
 L<WWW::Crawl4AI::Result/urls> of each good page. Resolves to a Future of an
-arrayref of L<WWW::Crawl4AI::Result> in visit order (the first is the start
-URL). Same semantics as L<WWW::Crawl4AI/deep_crawl>, but each depth level's
-frontier is crawled concurrently (up to C<concurrency>, default C<4>) instead
-of one page at a time.
+arrayref of L<WWW::Crawl4AI::Result> in breadth-first order: the start URL
+first, then deeper pages grouped by depth (the list is reordered back to
+enqueue order, so a faster page completing first does not jump the queue).
+Same semantics as L<WWW::Crawl4AI/deep_crawl>, but each depth level's frontier
+is crawled concurrently (up to C<concurrency>, default C<4>) instead of one
+page at a time.
 
 Options: C<max_pages> (default C<25>), C<max_depth> (default C<2>, start URL is
 depth C<0>), C<same_host> (default true), C<concurrency> (default C<4>,

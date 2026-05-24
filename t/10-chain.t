@@ -149,4 +149,12 @@ subtest 'async callback strategy returns a Future' => sub {
   like $r->markdown, qr/from callback/, 'callback markdown carried';
 };
 
+subtest 'adding to the loop eagerly builds the Net::Async::HTTP child' => sub {
+  my $c = Test::C4::Scripted->new( base_url => 'http://localhost:9999', script => [] );
+  ok !$c->{http}, 'no http child before being added to a loop';
+  $loop->add($c);
+  ok $c->{http}, 'http child built by _add_to_loop hook';
+  isa_ok $c->{http}, 'Net::Async::HTTP';
+};
+
 done_testing;
