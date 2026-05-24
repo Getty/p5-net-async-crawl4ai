@@ -7,15 +7,85 @@ use parent 'IO::Async::Notifier';
 use Carp qw( croak );
 use Scalar::Util qw( blessed );
 use Time::HiRes ();
+use URI ();
 use WWW::Crawl4AI ();
 use WWW::Crawl4AI::Request ();
 use WWW::Crawl4AI::Result ();
 use WWW::Crawl4AI::Error ();
 use Net::Async::HTTP ();
 use Future ();
-use Future::Utils qw( repeat );
+use Future::Utils qw( repeat fmap_void );
 
 our $VERSION = '0.001';
+
+=head1 SYNOPSIS
+
+  use IO::Async::Loop;
+  use Net::Async::Crawl4AI;
+
+  my $loop = IO::Async::Loop->new;
+  my $crawler = Net::Async::Crawl4AI->new(
+    base_url         => 'http://localhost:11235',
+    cloakbrowser_url => $ENV{CLOAKBROWSER_CDP_URL},   # optional
+    poll_interval    => 2,
+  );
+  $loop->add($crawler);
+
+  # Async strategy chain — escalates plain -> browser -> stealth -> ...
+  my $result = $crawler->markdown('https://example.com')->get;
+  say $result->markdown;
+  say $result->backend;        # crawl4ai_plain / crawl4ai_stealth / ...
+  say $result->attempts_json;
+
+  # Low-level single crawl (no chain), returns all pages.
+  my $pages = $crawler->crawl_once(
+    WWW::Crawl4AI::Request->new( urls => 'https://example.com' )
+  )->get;
+
+  # Submit an async crawl job and poll it to completion.
+  my $done = $crawler->crawl_job_and_wait('https://example.com')->get;
+  # { status => 'COMPLETED', pages => [...], raw => {...} }
+
+=head1 DESCRIPTION
+
+L<IO::Async>-flavoured companion to L<WWW::Crawl4AI>. It wraps a
+L<WWW::Crawl4AI> orchestrator, dispatches its request builders through
+L<Net::Async::HTTP>, and returns L<Future> objects — including a fully
+asynchronous run of the same B<visible strategy chain>.
+
+The pure building blocks (request building, page normalization, content
+classification via L<WWW::Crawl4AI::Detect>, and L<WWW::Crawl4AI::Attempt> /
+L<WWW::Crawl4AI::Result> history) are shared with the synchronous
+L<WWW::Crawl4AI>, so C<< $crawler->markdown(...)->get >> produces the same
+L<WWW::Crawl4AI::Result> the sync facade would — only non-blocking.
+
+B<Must C<< $loop->add($crawler) >> before use> — it is a
+L<IO::Async::Notifier> subclass. Without this the internal
+L<Net::Async::HTTP> has no loop and requests will hang.
+
+=head2 Constructor parameters
+
+  base_url, api_token, cloakbrowser_url, proxy_url, callback,
+  fallback, timeout, min_markdown, client
+
+All forwarded to the underlying L<WWW::Crawl4AI>. Or pass a pre-built instance
+as C<< crawl4ai => $www >>.
+
+Async-only keys: C<poll_interval>, C<http> (pre-built L<Net::Async::HTTP>),
+C<delay_sub> (CodeRef → Future, for retry/poll delays; mainly a test hook).
+
+The retry policy (C<max_attempts>, C<retry_backoff>, C<retry_statuses>,
+C<on_retry>) lives on the underlying L<WWW::Crawl4AI::Client>.
+
+=head2 Future contract
+
+Endpoint Futures fail as C<< Future->fail($error, 'crawl4ai') >> where
+C<$error> is a L<WWW::Crawl4AI::Error>. C<crawl>/C<markdown> never fail for
+per-strategy errors: each failed strategy is an entry in the attempt history,
+and an all-strategies-failed run resolves to a L<WWW::Crawl4AI::Result> with
+C<< ok => 0 >>.
+
+=cut
 
 # Keys forwarded straight to the underlying WWW::Crawl4AI orchestrator.
 my @WWW_KEYS = qw(
@@ -44,9 +114,37 @@ sub configure_unknown {
 }
 
 sub crawl4ai          { $_[0]->{crawl4ai} }
+
+=method crawl4ai
+
+The underlying L<WWW::Crawl4AI> orchestrator.
+
+=cut
+
 sub client            { $_[0]->{crawl4ai}->client }
+
+=method client
+
+The underlying L<WWW::Crawl4AI::Client> (used for request builders, response
+parsers and retry configuration).
+
+=cut
+
 sub poll_interval     { @_ > 1 ? ( $_[0]->{poll_interval} = $_[1] ) : $_[0]->{poll_interval} }
+
+=method poll_interval
+
+Read/write accessor for the default job-status poll interval in seconds.
+
+=cut
+
 sub available_backends { $_[0]->{crawl4ai}->available_backends }
+
+=method available_backends
+
+Arrayref of backend names currently in the chain.
+
+=cut
 
 sub http {
   my ( $self ) = @_;
@@ -58,6 +156,12 @@ sub http {
   $self->add_child($http);
   return $self->{http} = $http;
 }
+
+=method http
+
+The underlying L<Net::Async::HTTP> (lazily built and parented to this notifier).
+
+=cut
 
 sub _on_added_to_loop {
   my ( $self, $loop ) = @_;
@@ -80,6 +184,14 @@ sub do_request {
   croak "do_request requires an HTTP::Request" unless $self->client->is_request($request);
   return $self->_do_request_with_retry( $request, $backend, 1 );
 }
+
+=method do_request
+
+Low-level: dispatch an L<HTTP::Request> (typically built via
+C<< $self->client->foo_request >>) through L<Net::Async::HTTP> with the retry
+policy applied. Returns a Future of L<HTTP::Response>.
+
+=cut
 
 sub _retry_delay {
   my ( $self, $attempt, $response ) = @_;
@@ -165,6 +277,16 @@ sub crawl_once {
   );
 }
 
+=method crawl_once
+
+  $crawler->crawl_once($request, $backend?) → Future[\@pages]
+
+Low-level single C<POST /crawl>. Resolves to the arrayref of normalized pages
+(no chain, no classification). C<$request> is a L<WWW::Crawl4AI::Request> or a
+payload hashref.
+
+=cut
+
 sub md {
   my ( $self, $url, %opts ) = @_;
   my $client  = $self->client;
@@ -177,6 +299,14 @@ sub md {
   );
 }
 
+=method md
+
+  $crawler->md($url_or_request, %opts) → Future[$markdown]
+
+C<POST /md>. Resolves to the markdown payload.
+
+=cut
+
 sub job_submit {
   my ( $self, $request ) = @_;
   my $client = $self->client;
@@ -185,6 +315,14 @@ sub job_submit {
     sub { $client->parse_job_submit_response( $_[0] ) },
   );
 }
+
+=method job_submit
+
+  $crawler->job_submit($request) → Future[{ task_id, raw }]
+
+C<POST /crawl/job>. Resolves to C<< { task_id => ..., raw => {...} } >>.
+
+=cut
 
 sub job_status {
   my ( $self, $task_id ) = @_;
@@ -195,6 +333,15 @@ sub job_status {
   );
 }
 
+=method job_status
+
+  $crawler->job_status($task_id) → Future[{ status, pages, raw }]
+
+C<GET /crawl/job/$task_id>. Resolves to C<< { status, pages, raw } >>; fails
+with a C<type=job> L<WWW::Crawl4AI::Error> when the job reports C<FAILED>.
+
+=cut
+
 sub health {
   my ( $self ) = @_;
   my $client = $self->client;
@@ -203,6 +350,13 @@ sub health {
     sub { Future->done(0) },
   );
 }
+
+=method health
+
+Resolves to 1 if the Crawl4AI server answers C<GET /health>, else 0. Never
+fails.
+
+=cut
 
 #----------------------------------------------------------------------
 # Job flow helper
@@ -219,6 +373,18 @@ sub crawl_job_and_wait {
     $self->_poll_job( $job->{task_id}, $interval );
   } );
 }
+
+=method crawl_job_and_wait
+
+  $crawler->crawl_job_and_wait($url_or_request, %opts) → Future[\%status]
+
+Submits a crawl job (C<POST /crawl/job>) and polls C<job_status> every
+C<poll_interval> seconds (override per call with C<< poll_interval => N >>)
+until it reports C<COMPLETED>. Resolves to the final status hash
+(C<< { status, pages, raw } >>); fails with a C<type=job>
+L<WWW::Crawl4AI::Error> on a failed job.
+
+=cut
 
 sub _poll_job {
   my ( $self, $task_id, $interval ) = @_;
@@ -317,82 +483,9 @@ sub crawl {
   } );
 }
 
-sub markdown { my ( $self, @args ) = @_; return $self->crawl(@args) }
-
-1;
-
-=head1 SYNOPSIS
-
-  use IO::Async::Loop;
-  use Net::Async::Crawl4AI;
-
-  my $loop = IO::Async::Loop->new;
-  my $crawler = Net::Async::Crawl4AI->new(
-    base_url         => 'http://localhost:11235',
-    cloakbrowser_url => $ENV{CLOAKBROWSER_CDP_URL},   # optional
-    poll_interval    => 2,
-  );
-  $loop->add($crawler);
-
-  # Async strategy chain — escalates plain -> browser -> stealth -> ...
-  my $result = $crawler->markdown('https://example.com')->get;
-  say $result->markdown;
-  say $result->backend;        # crawl4ai_plain / crawl4ai_stealth / ...
-  say $result->attempts_json;
-
-  # Low-level single crawl (no chain), returns all pages.
-  my $pages = $crawler->crawl_once(
-    WWW::Crawl4AI::Request->new( urls => 'https://example.com' )
-  )->get;
-
-  # Submit an async crawl job and poll it to completion.
-  my $done = $crawler->crawl_job_and_wait('https://example.com')->get;
-  # { status => 'COMPLETED', pages => [...], raw => {...} }
-
-=head1 DESCRIPTION
-
-L<IO::Async>-flavoured companion to L<WWW::Crawl4AI>. It wraps a
-L<WWW::Crawl4AI> orchestrator, dispatches its request builders through
-L<Net::Async::HTTP>, and returns L<Future> objects — including a fully
-asynchronous run of the same B<visible strategy chain>.
-
-The pure building blocks (request building, page normalization, content
-classification via L<WWW::Crawl4AI::Detect>, and L<WWW::Crawl4AI::Attempt> /
-L<WWW::Crawl4AI::Result> history) are shared with the synchronous
-L<WWW::Crawl4AI>, so C<< $crawler->markdown(...)->get >> produces the same
-L<WWW::Crawl4AI::Result> the sync facade would — only non-blocking.
-
-=head1 CONSTRUCTOR PARAMETERS
-
-=over 4
-
-=item * C<base_url>, C<api_token>, C<cloakbrowser_url>, C<proxy_url>, C<callback>, C<fallback>, C<timeout>, C<min_markdown>, C<client> — forwarded to L<WWW::Crawl4AI>.
-
-=item * C<crawl4ai> — pass a pre-built L<WWW::Crawl4AI> instance (overrides the keys above).
-
-=item * C<http> — pass a pre-built L<Net::Async::HTTP> (otherwise one is created and parented to this notifier).
-
-=item * C<poll_interval> — seconds between job-status polls (default 2).
-
-=item * C<delay_sub> — optional CodeRef returning a L<Future> for retry/poll delays. Defaults to C<< $loop->delay_future >>. Mainly a test hook.
-
-=back
-
-The retry policy (C<max_attempts>, C<retry_backoff>, C<retry_statuses>,
-C<on_retry>) lives on the underlying L<WWW::Crawl4AI::Client>; this module's
-async dispatch honours it via L</delay_sub>.
-
-=head1 ERROR HANDLING
-
-Endpoint Futures fail as C<< Future->fail($error, 'crawl4ai') >> where
-C<$error> is a L<WWW::Crawl4AI::Error>. C<crawl>/C<markdown> never fail for
-per-strategy errors: each failed strategy becomes an entry in the result's
-attempt history, and an all-strategies-failed run resolves to a
-L<WWW::Crawl4AI::Result> with C<< ok => 0 >>.
+=method crawl
 
 =method markdown
-
-=method crawl
 
   my $result = $crawler->markdown('https://example.com')->get;
   my $result = $crawler->crawl( url => 'https://example.com' )->get;
@@ -402,63 +495,97 @@ L<WWW::Crawl4AI::Result>. Same chain, same result object as the synchronous
 L<WWW::Crawl4AI/markdown>. Accepts a single positional URL or named arguments
 with a C<url> key.
 
-=method crawl_once($request, $backend?)
+The Future never fails for per-strategy errors: each failed strategy is an
+entry in the attempt history. An all-strategies-failed run resolves to a
+C<Result> with C<< ok => 0 >>.
 
-Low-level single C<POST /crawl>. Resolves to the arrayref of normalized pages
-(no chain, no classification). C<$request> is a L<WWW::Crawl4AI::Request> or a
-payload hashref.
+=cut
 
-=method md($url_or_request, %opts)
+sub markdown { my ( $self, @args ) = @_; return $self->crawl(@args) }
 
-C<POST /md>. Resolves to the markdown payload.
+sub deep_crawl {
+  my ( $self, @args ) = @_;
+  my $www = $self->crawl4ai;
+  my ( $start, %opts ) = $www->_normalize_args(@args);
+  croak "deep_crawl needs a url" unless defined $start && length $start;
 
-=method job_submit($request)
+  my $max_pages   = exists $opts{max_pages}   ? delete $opts{max_pages}   : 25;
+  my $max_depth   = exists $opts{max_depth}   ? delete $opts{max_depth}   : 2;
+  my $same_host   = exists $opts{same_host}   ? delete $opts{same_host}   : 1;
+  my $concurrency = exists $opts{concurrency} ? delete $opts{concurrency} : 4;
+  my $on_page     = delete $opts{on_page};
+  my $url_filter  = delete $opts{url_filter};
 
-C<POST /crawl/job>. Resolves to C<< { task_id, raw } >>.
+  my $start_host = lc( eval { URI->new($start)->host } // '' );
+  my %seen       = ( $www->_canon_url($start) => 1 );
+  my @results;
 
-=method job_status($task_id)
+  # Crawl one frontier level concurrently, gather the next level, recurse.
+  my $process_level;
+  $process_level = sub {
+    my ( $frontier ) = @_;
+    return Future->done( \@results )
+      unless @$frontier && @results < $max_pages;
 
-C<GET /crawl/job/$task_id>. Resolves to C<< { status, pages, raw } >>; fails
-with a C<type=job> L<WWW::Crawl4AI::Error> when the job reports C<FAILED>.
+    my @next;
+    my $level = fmap_void {
+      my ( $node ) = @_;
+      return Future->done if @results >= $max_pages;
+      $self->crawl( $node->{url}, %opts )->then( sub {
+        my ( $result ) = @_;
+        return Future->done if @results >= $max_pages;
+        push @results, $result;
+        $on_page->( $result, $node->{depth} ) if $on_page;
+        if ( $node->{depth} < $max_depth && $result->ok ) {
+          for my $url ( @{ $result->urls } ) {
+            my $canon = $www->_canon_url($url);
+            next if $seen{$canon}++;
+            if ($same_host) {
+              my $host = lc( eval { URI->new($url)->host } // '' );
+              next unless $host eq $start_host;
+            }
+            next if $url_filter && !$url_filter->($url);
+            push @next, { url => $url, depth => $node->{depth} + 1 };
+          }
+        }
+        Future->done;
+      } );
+    } foreach => [ @$frontier ], concurrent => $concurrency;
 
-=method crawl_job_and_wait($url_or_request, %opts)
+    return $level->then( sub { $process_level->( \@next ) } );
+  };
 
-Submits a crawl job and polls C<job_status> every C<poll_interval> seconds
-(override per call with C<< poll_interval => N >>) until it reports
-C<COMPLETED>. Resolves to the final status hash; fails C<type=job> on a failed
-job.
+  return $process_level->( [ { url => $start, depth => 0 } ] );
+}
 
-=method health
+=method deep_crawl
 
-Resolves to 1 if the Crawl4AI server answers C<GET /health>, else 0. Never
-fails.
+  my $results = $crawler->deep_crawl('https://example.com')->get;
+  my $results = $crawler->deep_crawl(
+    'https://example.com',
+    max_pages   => 50,
+    max_depth   => 3,
+    same_host   => 1,
+    concurrency => 8,                                  # async-only
+    url_filter  => sub { $_[0] !~ m{/login} },
+    on_page     => sub { my ( $result, $depth ) = @_; ... },
+    min_markdown => 200,            # any crawl() option is forwarded
+  )->get;
 
-=method do_request($http_request, $backend?)
+Asynchronous breadth-first crawl that follows the
+L<WWW::Crawl4AI::Result/urls> of each good page. Resolves to a Future of an
+arrayref of L<WWW::Crawl4AI::Result> in visit order (the first is the start
+URL). Same semantics as L<WWW::Crawl4AI/deep_crawl>, but each depth level's
+frontier is crawled concurrently (up to C<concurrency>, default C<4>) instead
+of one page at a time.
 
-Low-level: dispatch an L<HTTP::Request> (typically built via
-C<< $self->client->foo_request >>) through L<Net::Async::HTTP> with the retry
-policy applied. Returns a Future of L<HTTP::Response>.
+Options: C<max_pages> (default C<25>), C<max_depth> (default C<2>, start URL is
+depth C<0>), C<same_host> (default true), C<concurrency> (default C<4>,
+async-only), C<url_filter> (C<< ($url) -> bool >>), C<on_page>
+(C<< ($result, $depth) >>). URLs are deduplicated with the fragment stripped.
+Any remaining options are forwarded to each L</crawl>.
 
-=method crawl4ai
-
-The underlying L<WWW::Crawl4AI> orchestrator.
-
-=method client
-
-The underlying L<WWW::Crawl4AI::Client> (used for request builders, response
-parsers and retry configuration).
-
-=method http
-
-The underlying L<Net::Async::HTTP> (lazily built and parented to this notifier).
-
-=method poll_interval
-
-Read/write accessor for the default job-status poll interval (seconds).
-
-=method available_backends
-
-Arrayref of backend names currently in the chain.
+=cut
 
 =seealso
 
@@ -467,3 +594,5 @@ L<IO::Async>, L<Net::Async::HTTP>, L<Future>,
 L<https://github.com/unclecode/crawl4ai>
 
 =cut
+
+1;
