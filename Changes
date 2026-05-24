@@ -1,0 +1,10 @@
+{{$NEXT}}
+
+ - Initial release
+ - IO::Async / Net::Async::HTTP client wrapping WWW::Crawl4AI
+ - Future-returning low-level endpoints: crawl_once, md, job_submit, job_status, health
+ - Async, orchestrated strategy chain: markdown / crawl return Future<WWW::Crawl4AI::Result>
+ - crawl_job_and_wait flow helper: submit /crawl/job, poll to COMPLETED via delay_future
+ - Retry on transport + retryable API status via delay_future, sharing the
+   client's retry policy (max_attempts, retry_backoff, retry_statuses)
+ - Async callbacks: external_callback strategy may return a plain hashref or a Future
