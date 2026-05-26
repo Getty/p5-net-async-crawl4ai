@@ -358,6 +358,92 @@ fails.
 
 =cut
 
+sub screenshot {
+  my ( $self, $url, %opts ) = @_;
+  my $client = $self->client;
+  return $self->_parsed(
+    $client->screenshot_request( $url, %opts ),
+    sub { $client->parse_screenshot_response( $_[0] ) },
+  );
+}
+
+=method screenshot
+
+  $crawler->screenshot($url, wait_for => 2, wait_for_images => 1) → Future[$png_bytes]
+
+=method pdf
+
+  $crawler->pdf($url) → Future[$pdf_bytes]
+
+=method html
+
+  $crawler->html($url) → Future[$html]
+
+=method execute_js
+
+  $crawler->execute_js($url, $script_or_arrayref) → Future[\%page]
+
+=method llm
+
+  $crawler->llm($url, $query, %opts) → Future[$answer]
+
+=method token
+
+  $crawler->token($email) → Future[\%token]
+
+Future-returning single-URL action endpoints, mirroring
+L<WWW::Crawl4AI::Client>: C<screenshot>/C<pdf> resolve to raw bytes, C<html> to
+the preprocessed HTML, C<execute_js> to a normalized page with C<js_result>,
+C<llm> to an answer string (needs a server-side LLM provider), and C<token> to
+a JWT hash. They do B<not> run the strategy chain.
+
+=cut
+
+sub pdf {
+  my ( $self, $url, %opts ) = @_;
+  my $client = $self->client;
+  return $self->_parsed(
+    $client->pdf_request( $url, %opts ),
+    sub { $client->parse_pdf_response( $_[0] ) },
+  );
+}
+
+sub html {
+  my ( $self, $url ) = @_;
+  my $client = $self->client;
+  return $self->_parsed(
+    $client->html_request($url),
+    sub { $client->parse_html_response( $_[0] ) },
+  );
+}
+
+sub execute_js {
+  my ( $self, $url, $scripts ) = @_;
+  my $client = $self->client;
+  return $self->_parsed(
+    $client->execute_js_request( $url, $scripts ),
+    sub { $client->parse_execute_js_response( $_[0] ) },
+  );
+}
+
+sub llm {
+  my ( $self, $url, $query, %opts ) = @_;
+  my $client = $self->client;
+  return $self->_parsed(
+    $client->llm_request( $url, $query, %opts ),
+    sub { $client->parse_llm_response( $_[0] ) },
+  );
+}
+
+sub token {
+  my ( $self, $email, %opts ) = @_;
+  my $client = $self->client;
+  return $self->_parsed(
+    $client->token_request( $email, %opts ),
+    sub { $client->parse_token_response( $_[0] ) },
+  );
+}
+
 #----------------------------------------------------------------------
 # Job flow helper
 #----------------------------------------------------------------------

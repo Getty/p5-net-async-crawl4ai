@@ -11,3 +11,5 @@
  - deep_crawl: breadth-first crawl following each page's links, with each depth
    level's frontier crawled concurrently (concurrency knob); shares the link
    accessors and Result objects with WWW::Crawl4AI
+ - Future-returning single-URL action endpoints mirroring WWW::Crawl4AI:
+   screenshot / pdf (raw bytes), html, execute_js (page + js_result), llm, token
