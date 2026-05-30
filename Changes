@@ -1,4 +1,4 @@
-{{$NEXT}}
+0.001     2026-05-30 01:01:52Z
 
  - Initial release
  - IO::Async / Net::Async::HTTP client wrapping WWW::Crawl4AI
