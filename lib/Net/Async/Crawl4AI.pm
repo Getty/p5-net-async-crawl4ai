@@ -16,7 +16,7 @@ use Net::Async::HTTP ();
 use Future ();
 use Future::Utils qw( repeat fmap_void );
 
-our $VERSION = '0.001';
+our $VERSION = '0.002';
 
 =head1 SYNOPSIS
 
