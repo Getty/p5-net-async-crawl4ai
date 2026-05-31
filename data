@@ -1,0 +1,25 @@
+---
+class: standard
+completed: 2026-05-31
+created: 2026-05-30T22:14:58Z
+id: 1
+priority: low
+status: done
+tags:
+- geo
+- headers
+- test
+title: 'Regression test: async path surfaces response_headers'
+updated: 2026-05-30T22:14:58Z
+---
+
+DEPENDS ON WWW::Crawl4AI ticket (Expose response_headers on crawl Result).
+
+Net::Async::Crawl4AI needs NO production code change -- crawl_once funnels through WWW::Crawl4AI::Client::parse_crawl_response -> _normalize_page, and builds the Result via WWW::Crawl4AI::Result->from_attempt. So once WWW exposes response_headers, the async path inherits it.
+
+This ticket = lock that inheritance with a regression test, because Goldmine uses the ASYNC client at runtime (na_crawl4ai_client). If a future refactor gives NET its own page-builder, the header exposure must not silently regress.
+
+TEST
+Mock/stub the HTTP layer to return a crawl JSON payload containing response_headers => { Link => q(<...>; rel="api-catalog"), q(Content-Type) => q(text/html) }. Run crawl(...)->get. Assert $result->response_headers->{link} present AND lowercased. One test, async harness already exists in t/.
+
+Bump vendored WWW tarball dependency only after the WWW release.
