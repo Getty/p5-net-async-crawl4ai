@@ -1,14 +1,6 @@
 ---
 name: perl-net-async-crawl4ai
-description: |
-  Load when using Net::Async::Crawl4AI — the IO::Async / Future-based Perl
-  client for the Crawl4AI Docker service. Covers Future return contracts, the
-  async strategy chain (markdown/crawl → Future<WWW::Crawl4AI::Result>),
-  low-level endpoints (crawl_once/md/job_submit/job_status/health), the
-  crawl_job_and_wait flow helper, retry/backoff via delay_future, poll_interval,
-  and async callbacks. For the Crawl4AI service, the control-plane model, the
-  strategy chain semantics, and the sync client, see the companion
-  perl-crawl4ai skill.
+description: "Load when using Net::Async::Crawl4AI — the async Crawl4AI client: Future return contracts, the strategy chain, job submit and poll, retry and backoff. For the sync client see perl-www-crawl4ai."
 ---
 
 # Net::Async::Crawl4AI
@@ -68,7 +60,7 @@ failed strategy becomes an entry in the `Result`'s attempt history, and an
 all-strategies-failed run resolves to a `WWW::Crawl4AI::Result` with `ok => 0`.
 The chain escalates plain → browser → stealth → cloakbrowser → proxy → callback
 in cost order, stopping at the first `Detect::is_good` page. (Chain semantics
-and classification live in the `perl-crawl4ai` skill.)
+and classification live in the `perl-www-crawl4ai` skill.)
 
 ## Low-level Future endpoints
 
@@ -154,6 +146,6 @@ Both are handled — a returned `Future` is chained, a hashref is wrapped.
 
 - For the Crawl4AI service, deployment, the control-plane model, the strategy
   chain semantics, classification, or the sync `WWW::Crawl4AI` client — load
-  `perl-crawl4ai`.
+  `perl-www-crawl4ai`.
 - For generic `IO::Async` / `Future` lifecycle questions — load
   `perl-io-async-future`.
