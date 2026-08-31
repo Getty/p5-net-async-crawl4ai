@@ -1,6 +1,6 @@
 ---
-name: perl-net-async-crawl4ai
-description: "Load when using Net::Async::Crawl4AI — the async Crawl4AI client: Future return contracts, the strategy chain, job submit and poll, retry and backoff. For the sync client see perl-www-crawl4ai."
+name: net-async-crawl4ai-core
+description: "Load when using Net::Async::Crawl4AI — the async Crawl4AI client: Future return contracts, the strategy chain, deep_crawl concurrency, job submit and poll, retry and backoff, action endpoints. For the sync client see perl-www-crawl4ai."
 ---
 
 # Net::Async::Crawl4AI
@@ -75,6 +75,34 @@ One call each, no chain:
 | `health` | `Future[0\|1]` (never fails) | `GET /health` |
 
 `$request` is a `WWW::Crawl4AI::Request` or a payload hashref.
+
+## Action endpoints (single URL, no chain)
+
+Future-returning mirrors of `WWW::Crawl4AI::Client`'s action calls — each one
+request, no strategy chain, no classification:
+
+| method | returns | notes |
+|---|---|---|
+| `screenshot($url, %opts)` | `Future[$png_bytes]` | `wait_for`, `wait_for_images` |
+| `pdf($url, %opts)` | `Future[$pdf_bytes]` | |
+| `html($url)` | `Future[$html]` | preprocessed HTML |
+| `execute_js($url, $script_or_arrayref)` | `Future[\%page]` | page carries `js_result` |
+| `llm($url, $query, %opts)` | `Future[$answer]` | needs a server-side LLM provider |
+| `token($email, %opts)` | `Future[\%jwt]` | JWT hash |
+
+## Concurrent deep crawl
+
+### `deep_crawl($url_or_request, %opts) → Future[\@results]`
+
+Async breadth-first crawl following each good page's `->urls`. Resolves to an
+arrayref of `WWW::Crawl4AI::Result` in **breadth-first / enqueue order** (a
+faster page completing first never jumps the queue). Each depth level's frontier
+is crawled concurrently via `Future::Utils::fmap_void` — up to `concurrency`
+(default `4`, **async-only**; the sync `WWW::Crawl4AI` has no equivalent). Other
+options match the sync client: `max_pages` (25), `max_depth` (2, start is depth
+0), `same_host` (true — locked onto the start URL's *resolved* host), `url_filter`
+(`($url)->bool`), `on_page` (`($result, $depth)`); remaining opts forward to each
+`crawl`. URLs dedup with the fragment stripped.
 
 ## Flow helper
 

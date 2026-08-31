@@ -1,0 +1,11 @@
+claude: true
+prompt: |
+  Drain the Net-Async-Crawl4AI karr board. This is the async IO::Async Crawl4AI
+  client — an IO::Async::Notifier subclass wrapping WWW::Crawl4AI, returning
+  Futures throughout (the same visible strategy chain, run non-blocking). Delegate
+  behavior-relevant code to the net-async-crawl4ai-worker agent, tests to
+  net-async-crawl4ai-test-writer, and release audits to
+  net-async-crawl4ai-release-checker; follow
+  .claude/rules/net-async-crawl4ai-rules.md. Never release. Reuse the sync building
+  blocks from WWW::Crawl4AI — never fork them; work that belongs to the sister
+  WWW::Crawl4AI is a ticket on that repo's board, not a local edit.
