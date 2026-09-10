@@ -1,0 +1,20 @@
+---
+claimed_at: 2026-09-10T03:39:53Z
+claimed_by: worker-c
+class: standard
+completed: 2026-09-10T03:39:53Z
+created: 2026-08-31T04:48:21Z
+id: 2
+priority: medium
+started: 2026-09-10T03:37:10Z
+status: done
+tags:
+- changelog
+- release
+title: Fill the empty Changes {{$NEXT}} section before next release
+updated: 2026-09-10T03:39:53Z
+---
+
+The Changes {{$NEXT}} block is empty, but $VERSION is already 0.002 and there are user-visible changes since the 0.001 tag: response_headers now surfaced on the async crawl Result (locked by t/55-response-headers.t), and the WWW::Crawl4AI runtime minimum was raised (0.002 -> 0.006) for response_headers support. Add the unreleased entries so the release-checker sees a Changes section that matches git log --oneline f9eec09.. Do NOT release; this is doc/changelog only.
+
+Done in commit abed063: {{$NEXT}} filled with two unreleased entries — response_headers surfaced on async Result (t/55) and WWW::Crawl4AI min raised to 0.006. cpanfile bump landed separately in c8462dd. Placeholder {{$NEXT}} left literal per Author::GETTY convention (no manual version/date). Note: full suite surfaced a pre-existing t/10-chain.t classification drift under 0.006 — filed as #3, orthogonal to this changelog task.
