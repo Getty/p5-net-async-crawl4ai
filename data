@@ -1,0 +1,22 @@
+---
+claimed_at: 2026-09-10T03:55:37Z
+claimed_by: worker-c
+class: standard
+completed: 2026-09-10T03:55:37Z
+created: 2026-09-10T03:39:23Z
+id: 3
+priority: high
+started: 2026-09-10T03:50:00Z
+status: done
+tags:
+- test
+- classification
+- dep-bump
+title: 't/10-chain.t: 403 now classified http_403, not bot_wall_detected under WWW::Crawl4AI
+  0.006'
+updated: 2026-09-10T03:55:37Z
+---
+
+Under installed WWW::Crawl4AI 0.006 (now the cpanfile minimum, commit c8462dd), t/10-chain.t fails 2 subtests: a status_code=403 blocked page ($blocked, line 56) is classified why_failed => http_403, but the test expects bot_wall_detected (lines 81, 98). Classification lives in the shared WWW::Crawl4AI building blocks (Detect), so the async path faithfully mirrors the new sync behavior — the test expectations are stale, not the code. Failure is environmental/pre-existing (prove -lr uses the installed module, not the cpanfile), unrelated to the changelog work in #2. Decide with paypal/crawl4ai side whether 403 SHOULD still escalate as a bot wall; if the new http_403 classification is correct, update t/10-chain.t expectations (and any deep/action mirrors) and lock it. Behavior-relevant test change: route to net-async-crawl4ai-test-writer.
+
+Confirmed http_403 is the INTENDED WWW::Crawl4AI 0.005+ semantics, not a regression: Detect::signals sets blocked only from a WAF/captcha challenge final_url; the body-text 'Access denied' heuristic was removed in 0.005 (Changes) as a false-positive source. why_failed returns bot_wall_detected only if blocked, else http_$code for soft-fail 401/403/429 and >=500. POD says verbatim 'a bare 403 reads http_403'. The test fixture is a bare 403 with no challenge URL. Async path mirrors shared Detect faithfully, so the expectations (lines 81, 98) were stale. Updated to http_403 in commit a0f1a23; suite green.
