@@ -1,0 +1,19 @@
+---
+claimed_at: 2026-09-10T03:55:19Z
+claimed_by: worker-c
+class: standard
+completed: 2026-09-10T03:55:19Z
+created: 2026-09-10T03:49:40Z
+id: 4
+priority: medium
+started: 2026-09-10T03:49:54Z
+status: done
+tags:
+- bug
+- coordination
+title: 'Pair classify_is_good override into async _attempt_for (matches WWW::Crawl4AI
+  #2 / fdadbc8)'
+updated: 2026-09-10T03:55:19Z
+---
+
+Net::Async::Crawl4AI owns NO copy of _attempt_for: crawl() delegates to $self->crawl4ai->_attempt_for, so fdadbc8's classify_is_good dispatch steers the async chain automatically once the shared dep ships it -- no async lib change needed. Added t/15-classify-override.t (commit e894bbf) mirroring sync t/45: stricter override continues past a Detect-good page, looser one stops early -- verified GREEN against the fdadbc8 sibling tree; skips loudly while installed WWW::Crawl4AI 0.006 predates classify_is_good (its _attempt_for still hard-calls Detect::is_good). Guard activates on dep upgrade. Release-ordering only (sibling karr #2).
