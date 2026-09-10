@@ -1,5 +1,9 @@
 {{$NEXT}}
 
+ - crawl / markdown Result now surfaces response_headers from the async path,
+   mirroring the sync WWW::Crawl4AI facade (regression test t/55-response-headers.t)
+ - Require WWW::Crawl4AI 0.006 (up from 0.002) for response_headers support
+
 0.001     2026-05-30 01:01:52Z
 
  - Initial release
