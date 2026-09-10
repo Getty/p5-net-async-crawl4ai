@@ -1,4 +1,4 @@
-requires 'WWW::Crawl4AI', '0.002';
+requires 'WWW::Crawl4AI', '0.006';
 requires 'IO::Async', '0.802';
 requires 'Net::Async::HTTP', '0.49';
 requires 'Future', '0.50';
