@@ -2,7 +2,6 @@
 name: net-async-crawl4ai-worker
 description: "Default Net::Async::Crawl4AI worker — implement, refactor, debug, and test code in this distribution (the async IO::Async Crawl4AI client). Pre-loaded with the async strategy chain, Future contracts, retry/poll dispatch, the WWW::Crawl4AI coupling, and release setup. Use for any behavior-relevant change to lib/ or t/. Leaves a commit-ready tree; never commits — commits belong to net-async-crawl4ai-release-manager."
 model: inherit
-allowed-tools: Read, Edit, Write, Bash, Glob, Grep
 briefing:
   skills:
     - net-async-crawl4ai-core
