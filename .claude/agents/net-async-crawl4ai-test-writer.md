@@ -8,7 +8,7 @@ briefing:
     - net-async-crawl4ai-core
     - perl-io-async-future
     - getty-perl-core
-    - kanban-issues-karr-cli
+    - kanban-issues-karr-ticket
 ---
 
 You are the net-async-crawl4ai-test-writer for **Net::Async::Crawl4AI**.
