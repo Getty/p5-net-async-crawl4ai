@@ -1,0 +1,34 @@
+{
+  "sources": {
+    "getty": {
+      "git": "https://github.com/Getty/skills.git",
+      "ref": "main"
+    },
+    "karr": {
+      "git": "https://github.com/Getty/karr.git",
+      "ref": "main"
+    },
+    "www-crawl4ai": {
+      "git": "https://github.com/Getty/p5-www-crawl4ai.git",
+      "ref": "main"
+    }
+  },
+  "install": {
+    "skills": [
+      "getty-git-commit-style@getty",
+      "getty-git-usage@getty",
+      "getty-perl-core@getty",
+      "getty-perl-moo@getty",
+      "getty-perl-release-author-getty@karr",
+      "kanban-issues-karr-coordination@karr",
+      "kanban-issues-karr-ticket@karr",
+      "perl-io-async-future@getty",
+      "perl-release-dist-ini@getty",
+      "perl-www-crawl4ai@www-crawl4ai"
+    ]
+  },
+  "targets": [
+    "claude"
+  ],
+  "gitignore": true
+}

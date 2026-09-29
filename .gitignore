@@ -47,3 +47,7 @@
 # docker-compose local overrides
 docker-compose.override.yml
 docker-compose.override.yaml
+
+# skilletor: committe Config + Ignore-Block
+!.claude/skilletor.json
+!.claude/.gitignore
