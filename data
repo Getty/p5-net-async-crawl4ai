@@ -1,0 +1,26 @@
+---
+class: standard
+completed: 2026-10-13T19:50:22Z
+created: 2026-10-06T19:44:02Z
+id: 5
+priority: medium
+started: 2026-10-13T19:50:22Z
+status: done
+tags:
+- bug
+- async
+- drift
+- review-2026-10-06
+title: timeout is accepted but never applied to the async transport - a stalled crawl
+  never resolves
+updated: 2026-10-13T19:50:22Z
+---
+
+`timeout` is one of the keys forwarded to the internal `WWW::Crawl4AI` (`lib/Net/Async/Crawl4AI.pm:91-94`), where it configures the LWP user agent of the sync client (default 120 s). The async transport is built without it: `http` creates `Net::Async::HTTP->new(user_agent => ..., max_connections_per_host => 4)` (`Crawl4AI.pm:149-158`), and `_do_request_with_retry` calls `do_request(request => ..., fail_on_error => 0)` with no `timeout` either (`Crawl4AI.pm:210`). Net::Async::HTTP has no default timeout.
+
+Effect: `Net::Async::Crawl4AI->new(timeout => 30)` is silently ignored; a Crawl4AI container that accepts the request and hangs (browser stuck, the common failure of this service) leaves the Future of `crawl`/`markdown`/`screenshot` pending forever, and with it the strategy chain, which never escalates to the next backend. The retry policy cannot help because no failure is ever produced.
+
+Done when: the default `http` gets `timeout => $self->client->timeout` (and/or each `do_request` passes it), a timeout surfaces as the `transport` error and is retried like other transport failures, and a test with a never-resolving mock http proves it.
+
+---
+Fleet review 2026-10-06 · kind: bug · confidence: verified
