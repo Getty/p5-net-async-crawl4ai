@@ -74,6 +74,10 @@ as C<< crawl4ai => $www >>.
 Async-only keys: C<poll_interval>, C<http> (pre-built L<Net::Async::HTTP>),
 C<delay_sub> (CodeRef → Future, for retry/poll delays; mainly a test hook).
 
+C<timeout> (seconds, default 120) is applied to every request as the
+L<Net::Async::HTTP> C<timeout>; a stalled request fails as a C<transport> error
+and is retried like any other transport failure.
+
 The retry policy (C<max_attempts>, C<retry_backoff>, C<retry_statuses>,
 C<on_retry>) lives on the underlying L<WWW::Crawl4AI::Client>.
 
@@ -207,7 +211,11 @@ sub _do_request_with_retry {
   my ( $self, $request, $backend, $attempt ) = @_;
   my $client = $self->client;
   my $max    = $client->max_attempts;
-  return $self->http->do_request( request => $request, fail_on_error => 0 )->then(
+  return $self->http->do_request(
+    request       => $request,
+    fail_on_error => 0,
+    timeout       => $client->timeout,
+  )->then(
     sub {
       my ( $response ) = @_;
       return Future->done($response) if $response->is_success;
