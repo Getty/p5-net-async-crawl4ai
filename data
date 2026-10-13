@@ -1,0 +1,22 @@
+---
+class: standard
+completed: 2026-10-13T19:50:22Z
+created: 2026-10-06T19:44:07Z
+id: 6
+priority: low
+started: 2026-10-13T19:50:22Z
+status: done
+tags:
+- hygiene
+- cpanfile
+- review-2026-10-06
+title: 'cpanfile: URI is used directly but not declared'
+updated: 2026-10-13T19:50:22Z
+---
+
+`lib/Net/Async/Crawl4AI.pm:10` has `use URI ();` and the tests load `URI` and `Moo` (`t/`), but `cpanfile` declares only `WWW::Crawl4AI`, `IO::Async`, `Net::Async::HTTP` and `Future`. Both arrive transitively through WWW::Crawl4AI today.
+
+Done when: `requires 'URI'` is in `cpanfile` and `Moo` is listed under `on test` (or the test stops using it).
+
+---
+Fleet review 2026-10-06 · kind: hygiene · confidence: verified
