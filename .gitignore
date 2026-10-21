@@ -25,6 +25,9 @@
 .claude/todos/
 .claude/projects/
 
+# Claude Code worktrees (claude --worktree / isolated agents) -- never commit
+/.claude/worktrees/
+
 /Net-Async-Crawl4AI-*
 /.build/
 # Perl build artifacts
