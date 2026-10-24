@@ -154,7 +154,9 @@ Both are handled — a returned `Future` is chained, a hashref is wrapped.
 - `_do_request_with_retry` — retries transport failures and retryable statuses
   via `_delay_future` (which uses `delay_sub` or `loop->delay_future`). On a
   non-retryable / exhausted non-2xx it hands the response back so the endpoint's
-  parser raises the proper `api` error (with `status_code`).
+  parser raises the proper `api` error (with `status_code`). It passes
+  `max_redirects => 0` (parity with the sync client's `max_redirect => 0`): a 3xx
+  is never followed and becomes a `type=api` error; `health` resolves 0.
 - `_run_strategy_future` — runs one strategy: `build_request` → `crawl_once`
   for Crawl4AI-backed strategies, or the callback path for `external_callback`.
 - `_poll_job` — `Future::Utils::repeat` until `COMPLETED`; a `FAILED` job's

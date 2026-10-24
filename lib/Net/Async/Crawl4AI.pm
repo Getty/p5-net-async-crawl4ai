@@ -195,6 +195,11 @@ Low-level: dispatch an L<HTTP::Request> (typically built via
 C<< $self->client->foo_request >>) through L<Net::Async::HTTP> with the retry
 policy applied. Returns a Future of L<HTTP::Response>.
 
+Redirects are never followed (C<< max_redirects => 0 >>), matching the sync
+client: a 3xx response is handed back like any other non-2xx, so the
+endpoint's parser reports it as a C<type=api> error carrying the 3xx
+C<status_code>.
+
 =cut
 
 sub _retry_delay {
@@ -214,6 +219,7 @@ sub _do_request_with_retry {
   return $self->http->do_request(
     request       => $request,
     fail_on_error => 0,
+    max_redirects => 0,
     timeout       => $client->timeout,
   )->then(
     sub {
@@ -354,7 +360,12 @@ sub health {
   my ( $self ) = @_;
   my $client = $self->client;
   return $self->do_request( $client->health_request )->then(
-    sub { Future->done( $client->parse_health_response( $_[0] ) ? 1 : 0 ) },
+    sub {
+      my ( $res ) = @_;
+      # The parser may die on a non-2xx (as the sync client's eval absorbs).
+      my $healthy = eval { $client->parse_health_response($res) };
+      Future->done( $healthy ? 1 : 0 );
+    },
     sub { Future->done(0) },
   );
 }

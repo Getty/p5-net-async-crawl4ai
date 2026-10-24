@@ -1,5 +1,9 @@
 {{$NEXT}}
 
+ - Async requests no longer follow redirects (max_redirects => 0), matching
+   WWW::Crawl4AI: a 3xx fails as an api error carrying the 3xx status_code
+ - health resolves 0 instead of failing when the response parser dies on a
+   non-2xx status
  - The timeout attribute is now applied to every async request (passed to
    Net::Async::HTTP do_request); a stalled request fails as a transport error and
    is retried, so a hung Crawl4AI no longer leaves the Future pending forever
