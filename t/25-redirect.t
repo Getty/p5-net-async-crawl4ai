@@ -79,27 +79,37 @@ subtest 'job_status: a 302 fails the Future with type=api, status_code 302' => s
   isa_ok $err, 'WWW::Crawl4AI::Error';
   ok $err && $err->is_api, 'type=api';
   is $err && $err->status_code, 302, 'status_code 302';
+  like $err && $err->message, qr/HTTP 302: Found \(GET \/crawl\/job\/abc\)/,
+    'message names the status, the method and the path';
   is $category, 'crawl4ai', 'failure category crawl4ai';
   is scalar @{ $http->args }, 1, 'a 302 is not retried';
 };
 
 subtest 'health: a 302 resolves 0' => sub {
   my $http = Test::RedirectingHTTP->new( found(), ok_json( { status => 'ok' } ) );
+  my @warnings;
+  local $SIG{__WARN__} = sub { push @warnings, $_[0] };
   my $f = crawler($http)->health;
   $loop->await($f);
   ok $f->is_done, 'health never fails';
   is $f->get, 0, 'redirect reads as unhealthy';
   is $http->followed, 0, 'redirect not followed';
+  is scalar @warnings, 1, 'one health warning';
+  like $warnings[0], qr/\Acrawl4ai health check failed: .*302/, 'it names the 302';
 };
 
 subtest 'health: a non-2xx resolves 0, never fails' => sub {
   my $http = Test::RedirectingHTTP->new(
     HTTP::Response->new( 500, 'Internal Server Error', [ 'Content-Type' => 'text/plain' ], 'boom' ),
   );
+  my @warnings;
+  local $SIG{__WARN__} = sub { push @warnings, $_[0] };
   my $f = crawler($http)->health;
   $loop->await($f);
   ok $f->is_done, 'health never fails';
   is $f->get, 0, '500 reads as unhealthy';
+  is scalar @warnings, 1, 'one health warning';
+  like $warnings[0], qr/\Acrawl4ai health check failed: .*500/, 'it names the 500';
 };
 
 done_testing;

@@ -73,7 +73,7 @@ Low-level methods, one call each, no strategy chain:
 | `md($url_or_request, %opts)` | `Future[$markdown]` | `POST /md` |
 | `job_submit($request)` | `Future[{task_id, raw}]` | `POST /crawl/job` |
 | `job_status($task_id)` | `Future[{status, pages, raw}]` | `GET /crawl/job/{id}` |
-| `health` | `Future[0\|1]` — never fails | `GET /health` |
+| `health` | `Future[0\|1]` — never fails; a failed check warns `crawl4ai health check failed: <reason>` | `GET /health` |
 
 Flow helper: `crawl_job_and_wait($url_or_request, %opts)` submits a job and
 polls `job_status` every `poll_interval` seconds (override per call with

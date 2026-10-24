@@ -362,18 +362,40 @@ sub health {
   return $self->do_request( $client->health_request )->then(
     sub {
       my ( $res ) = @_;
-      # The parser may die on a non-2xx (as the sync client's eval absorbs).
-      my $healthy = eval { $client->parse_health_response($res) };
-      Future->done( $healthy ? 1 : 0 );
+      # The parser dies on a non-2xx (a 3xx included), as in the sync client.
+      my $healthy = eval { $client->parse_health_response($res) ? 1 : 0 };
+      if ( my $err = $@ ) {
+        $self->_warn_health_failure($err);
+        return Future->done(0);
+      }
+      return Future->done($healthy);
     },
-    sub { Future->done(0) },
+    sub {
+      my ( $err ) = @_;
+      $self->_warn_health_failure($err);
+      return Future->done(0);
+    },
   );
+}
+
+# Same warning as WWW::Crawl4AI::Client::health: the reason on one line.
+sub _warn_health_failure {
+  my ( $self, $err ) = @_;
+  my $message = blessed($err) && $err->isa('WWW::Crawl4AI::Error') ? $err->message : $err;
+  $message = '' unless defined $message;
+  $message =~ s/\s*\n.*\z//s;
+  $message =~ s/\s+\z//;
+  warn 'crawl4ai health check failed: ' . $message . "\n" if length $message;
+  return;
 }
 
 =method health
 
 Resolves to 1 if the Crawl4AI server answers C<GET /health>, else 0. Never
-fails.
+fails. Like the sync L<WWW::Crawl4AI::Client/health>, a failed check (a
+transport error, or a non-2xx answer including a 3xx) warns once,
+C<crawl4ai health check failed: E<lt>reasonE<gt>>, with the reason on a single
+line, before resolving 0.
 
 =cut
 

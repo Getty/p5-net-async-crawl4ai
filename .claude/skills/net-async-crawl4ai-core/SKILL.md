@@ -76,7 +76,7 @@ One call each, no chain:
 | `md($url_or_request, %opts)` | `Future[$markdown]` | `POST /md` |
 | `job_submit($request)` | `Future[{task_id, raw}]` | `POST /crawl/job` |
 | `job_status($task_id)` | `Future[{status, pages, raw}]` | `GET /crawl/job/{id}` |
-| `health` | `Future[0\|1]` (never fails) | `GET /health` |
+| `health` | `Future[0\|1]` (never fails; a failed check warns once, one line, `crawl4ai health check failed: <reason>`, like the sync client) | `GET /health` |
 
 `$request` is a `WWW::Crawl4AI::Request` or a payload hashref.
 
@@ -160,7 +160,7 @@ Both are handled — a returned `Future` is chained, a hashref is wrapped.
   non-retryable / exhausted non-2xx it hands the response back so the endpoint's
   parser raises the proper `api` error (with `status_code`). It passes
   `max_redirects => 0` (parity with the sync client's `max_redirect => 0`): a 3xx
-  is never followed and becomes a `type=api` error; `health` resolves 0.
+  is never followed and becomes a `type=api` error; `health` warns and resolves 0.
 - `_run_strategy_future` — runs one strategy: `build_request` → `crawl_once`
   for Crawl4AI-backed strategies, or the callback path for `external_callback`.
 - `_poll_job` — `Future::Utils::repeat` until `COMPLETED`; a `FAILED` job's
