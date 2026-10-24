@@ -45,6 +45,10 @@ The retry policy (`max_attempts`, `retry_backoff`, `retry_statuses`, `on_retry`)
 lives on the underlying `WWW::Crawl4AI::Client`; the async dispatch honours it
 via `delay_sub` / `loop->delay_future`.
 
+`timeout` (seconds, default 120, from the client) is passed to every
+`Net::Async::HTTP` `do_request`: a stalled request fails as a `transport` error
+and is retried like any other — a hung Crawl4AI never leaves a Future pending.
+
 ## The headline: the async chain
 
 ```perl

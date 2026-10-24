@@ -32,6 +32,7 @@ say $result->markdown;
 say $result->backend;        # which strategy won
 say $result->cost_class;     # cheap / browser / stealth / paid
 say $result->final_url;
+say $result->response_headers->{'content-type'};  # lowercased header names
 say $result->attempts_json;  # full attempt history, JSON-safe
 
 # Low-level single crawl (no chain) — resolves to all pages
@@ -78,6 +79,20 @@ Flow helper: `crawl_job_and_wait($url_or_request, %opts)` submits a job and
 polls `job_status` every `poll_interval` seconds (override per call with
 `poll_interval => N`) until `COMPLETED`.
 
+## Action endpoints
+
+Single-URL calls mirroring `WWW::Crawl4AI::Client` — one request each, no
+strategy chain, no classification:
+
+| Method | Returns | Notes |
+|---|---|---|
+| `screenshot($url, %opts)` | `Future[$png_bytes]` | `wait_for`, `wait_for_images` |
+| `pdf($url, %opts)` | `Future[$pdf_bytes]` | |
+| `html($url)` | `Future[$html]` | preprocessed HTML |
+| `execute_js($url, $script_or_arrayref)` | `Future[\%page]` | page carries `js_result` |
+| `llm($url, $query, %opts)` | `Future[$answer]` | needs a server-side LLM provider |
+| `token($email, %opts)` | `Future[\%jwt]` | JWT hash |
+
 ## Links and deep crawl
 
 Every `Result` exposes the links Crawl4AI found, and `deep_crawl` follows them —
@@ -122,6 +137,10 @@ Async-only:
 
 The retry policy (`max_attempts`, `retry_backoff`, `retry_statuses`,
 `on_retry`) lives on the underlying `WWW::Crawl4AI::Client`.
+
+`timeout` (seconds, default 120) applies to every async request: a stalled
+request fails as a `transport` error and is retried like any other transport
+failure, so a hung Crawl4AI never leaves a Future pending.
 
 ## Errors
 

@@ -31,9 +31,9 @@ principle and lane are in `.claude/rules/net-async-crawl4ai-rules.md`.
 The agents carry their skills via `briefing.skills` (see `.claude/agents/`); the main
 agent delegates rather than loading them. The async strategy chain, Future contracts,
 retry/poll dispatch, deep_crawl concurrency and action endpoints live in skill
-`net-async-crawl4ai-core` (`.claude/skills/`), alongside the hardlinked shared skills
-(`perl-www-crawl4ai`, `perl-io-async-future`, `getty-perl-core`, `getty-perl-moo`,
-`perl-release-dist-ini`, `kanban-issues-karr-coordination`). General Perl / Dist::Zilla / style
+`net-async-crawl4ai-core` (`.claude/skills/`, tracked — the repo's own skill). The shared
+skills beside it are installed by skilletor from `.claude/skilletor.json` (gitignored build
+artifacts — edit them in their source repo, then `skilletor sync`). General Perl / Dist::Zilla / style
 conventions are in `getty-perl-core`. House rules and the delegation lock:
 `.claude/rules/net-async-crawl4ai-rules.md`.
 
