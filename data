@@ -1,0 +1,26 @@
+---
+claimed_at: 2026-10-24T21:45:40Z
+claimed_by: net-async-crawl4ai-worker
+class: standard
+completed: 2026-10-24T21:45:40Z
+created: 2026-10-24T21:41:29Z
+id: 7
+priority: high
+started: 2026-10-24T21:41:41Z
+status: done
+title: Refuse redirects on the async transport (parity with WWW::Crawl4AI 3eaac25
+  / k7)
+updated: 2026-10-24T21:45:44Z
+---
+
+WWW::Crawl4AI (unreleased, 0.007, commit 3eaac25 "Refuse redirects and name status, method and path in errors") builds its LWP agent with max_redirect => 0: a 3xx is reported as an api error naming status, method and path.
+
+Net::Async::HTTP follows GET/HEAD redirects by default (max_redirects 3). So on the async path job_status (GET /crawl/job/{id}) and health (GET /health) follow a 3xx while the sync facade fails. The redirected request is rebuilt without the Authorization header, so no bearer-token leak, but the Result/error diverges from sync.
+
+Fix: pass max_redirects => 0 in _do_request_with_retry (http->do_request), so the 3xx response reaches the shared parse_* and raises the same error as sync. Regression test: scripted HTTP returning 302 + Location for job_status → Future fails type=api, status_code 302; health → 0. Requires the parser from WWW::Crawl4AI 0.007 for the exact message; bump the cpanfile minimum only if the test depends on it (a dep pinned ahead of CPAN is not a blocker in this family). Update POD/skill net-async-crawl4ai-core if the transport contract wording changes.
+
+2026-10-24 21:44 Also found: with WWW::Crawl4AI 0.007, parse_health_response dies on any non-2xx, which made async health() FAIL its Future (e.g. on a 500), breaking the 'never fails' contract. Sync health() wraps it in eval and returns 0. Fixed here too (eval around the parse); the redirect test needs it. Sync also warns 'crawl4ai health check failed: …'. Async does not mirror that warning; that's a decision for the dispatcher, not made here.
+
+2026-10-24 21:44 Done: _do_request_with_retry passes max_redirects => 0 to Net::Async::HTTP->do_request, so a 3xx reaches the shared parse_* (type=api, status_code 3xx; with 0.007 the message names method+path, since NaHTTP attaches the request to the response). health() now evals parse_health_response so a non-2xx resolves 0 under 0.007. POD note on do_request. New t/25-redirect.t uses a scripted HTTP that follows GET 3xx unless max_redirects=0. It fails 4/4 subtests with the fix reverted. prove -l t/ (WWW::Crawl4AI 0.006) and prove -l -I../p5-www-crawl4ai/lib t/ (0.007) both PASS, 9 files. No cpanfile bump: the test doesn't assert 0.007 message text.
+
+2026-10-24 21:45 Committed as 4c01d8d
