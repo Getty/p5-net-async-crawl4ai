@@ -1,0 +1,29 @@
+---
+claimed_at: 2026-10-24T21:54:34Z
+claimed_by: net-async-crawl4ai-worker
+class: standard
+completed: 2026-10-24T21:54:34Z
+created: 2026-10-24T21:50:57Z
+id: 8
+priority: high
+started: 2026-10-24T21:51:01Z
+status: done
+title: health warns on failure like sync; require WWW::Crawl4AI 0.007
+updated: 2026-10-24T21:56:27Z
+---
+
+Two items, maintainer-approved:
+
+1. Async `health` mirrors the sync WWW::Crawl4AI::Client::health (../p5-www-crawl4ai/lib/WWW/Crawl4AI/Client.pm ~L730-750): on a failed check (transport failure Future, or parse_health_response dying on non-2xx/3xx) warn once `crawl4ai health check failed: <reason>` with the reason on one line (Error->message if a WWW::Crawl4AI::Error, else the string; strip after first newline and trailing whitespace; no warn when the reason is empty), then resolve 0. Never fail the Future. Update POD of `health` and the net-async-crawl4ai-core skill table/line if it says "never fails" without the warning. Test: capture $SIG{__WARN__} for 500, 302 and transport failure; assert one warning with the prefix, single line; a healthy 200 warns nothing. Existing tests that hit failing health must not spew warnings uncaught (check t/ output stays clean).
+
+2. cpanfile: raise `WWW::Crawl4AI` minimum to 0.007 (maintainer: maxing the version is fine; sibling releases together). Then tests may rely on 0.007 behavior (e.g. the redirect error message naming method + path) — tighten t/25-redirect.t if worthwhile. Suite must pass with `prove -l -I../p5-www-crawl4ai/lib t/` (the installed copy is 0.006, so plain `prove -l t/` may legitimately need the -I now — say so).
+
+2026-10-24 21:53 Finding: installed WWW::Crawl4AI 0.006 parse_health_response returns 0 silently on a non-2xx (no die), so the async warning on 500/302 depends on 0.007's dying parser + its 'HTTP NNN: reason (METHOD /path)' message. The 0.007 pin is load-bearing, not cosmetic. Plain 'prove -l t/' against installed 0.006 now FAILS t/25-redirect.t (3) + t/26-health.t (2); needs -I../p5-www-crawl4ai/lib until 0.007 is on CPAN (coordinated family release).
+
+2026-10-24 21:53 Done: health() warns once 'crawl4ai health check failed: <reason>' (Error->message or string, cut at first newline, trailing ws stripped, no warn when empty) via new private _warn_health_failure, on both the parser-die branch (non-2xx incl. 3xx) and the transport-fail branch (after retries), then resolves 0, never fails. cpanfile WWW::Crawl4AI 0.006 -> 0.007. POD health + README table + core SKILL.md (table row + dispatch line) mention the warning. New t/26-health.t (200 silent; 500, 302, transport with multi-line trace each one prefixed single-line warning; empty reasons silent); t/25-redirect.t captures the health warnings (keeps output clean) and asserts the 0.007 job_status message names 'GET /crawl/job/abc'. Verified: prove -l -I../p5-www-crawl4ai/lib t/ PASS, 10 files/40 tests, no stray warnings; red check (warn disabled temporarily by edit) failed 25-redirect + 26-health; plain prove -l t/ against installed 0.006 fails as noted. Changes untouched.
+
+2026-10-24 21:54 Committed as b0a332b
+
+2026-10-24 21:56 Amended: hash is now ce3e102 (was b0a332b); Changes health bullet reworded to 'any non-2xx answer, a 3xx included
+
+2026-10-24 21:56 Amended again: hash is now c651b1f (was ce3e102); commit body reworded to 'any non-2xx answer (a 3xx included)
