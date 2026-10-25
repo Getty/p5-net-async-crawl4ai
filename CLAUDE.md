@@ -20,7 +20,8 @@ ex/live_example.pl   # the only thing that hits a real Crawl4AI server
 ## Delegation
 
 Delegate behavior-relevant code to the right agent instead of touching it yourself —
-principle and lane are in `.claude/rules/net-async-crawl4ai-rules.md`.
+the delegation lock and the publish gate are shared house rules (skilletor bundle
+`getty-cpan-dist@getty`); lanes and hazards are in `.claude/rules/net-async-crawl4ai-rules.md`.
 
 | Task | Agent |
 |---|---|
@@ -34,8 +35,8 @@ retry/poll dispatch, deep_crawl concurrency and action endpoints live in skill
 `net-async-crawl4ai-core` (`.claude/skills/`, tracked — the repo's own skill). The shared
 skills beside it are installed by skilletor from `.claude/skilletor.json` (gitignored build
 artifacts — edit them in their source repo, then `skilletor sync`). General Perl / Dist::Zilla / style
-conventions are in `getty-perl-core`. House rules and the delegation lock:
-`.claude/rules/net-async-crawl4ai-rules.md`.
+conventions are in `getty-perl-core`. The delegation lock is a shared house rule (bundle
+`getty-cpan-dist@getty`); repo-specific house rules: `.claude/rules/net-async-crawl4ai-rules.md`.
 
 ## Coordination
 

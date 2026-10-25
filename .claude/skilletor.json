@@ -25,6 +25,9 @@
       "perl-io-async-future@getty",
       "perl-release-dist-ini@getty",
       "perl-www-crawl4ai@www-crawl4ai"
+    ],
+    "bundles": [
+      "getty-cpan-dist@getty"
     ]
   },
   "targets": [
