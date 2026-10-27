@@ -13,6 +13,8 @@
    mirroring the sync WWW::Crawl4AI facade (regression test t/55-response-headers.t)
  - Require WWW::Crawl4AI 0.007 (up from 0.002) for response_headers support
    and the dying health parser behind the health warning
+ - t/10-chain.t expects http_403 for a bare 403 answer, the reason
+   WWW::Crawl4AI 0.005 and later report for it (RT#179729)
 
 0.001     2026-05-30 01:01:52Z
 
