@@ -37,7 +37,7 @@ CPAN is never a blocker either.
 - **The sync building blocks are shared, not forked.** Request building, page normalization,
   classification, `Result`/`Attempt` history all come from `WWW::Crawl4AI` via
   `$self->crawl4ai`/`$self->client`; the async path must produce the *same*
-  `WWW::Crawl4AI::Result` as the sync facade. Goldmine consumes the ASYNC client at runtime,
+  `WWW::Crawl4AI::Result` as the sync facade. Downstream apps consume the ASYNC client at runtime,
   so any header/backend exposure that regresses here breaks a real consumer — mirror the sync
   path and lock it with a test (see the response_headers ticket).
 - **`!ok` Result is data, not a failed Future.** `crawl`/`markdown`/`deep_crawl` succeed even
