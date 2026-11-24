@@ -29,7 +29,7 @@ the delegation lock and the publish gate are shared house rules (skilletor bundl
 | Write/extend tests | `net-async-crawl4ai-test-writer` |
 | Commits, `Changes`, card → done, pre-release audit | `net-async-crawl4ai-release-manager` |
 
-The agents carry their skills via `briefing.skills` (see `.claude/agents/`); the main
+The agents carry their skills via `skills:` (see `.claude/agents/`); the main
 agent delegates rather than loading them. The async strategy chain, Future contracts,
 retry/poll dispatch, deep_crawl concurrency and action endpoints live in skill
 `net-async-crawl4ai-core` (`.claude/skills/`, tracked — the repo's own skill). The shared
