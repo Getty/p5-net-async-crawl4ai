@@ -1,4 +1,4 @@
-{{$NEXT}}
+0.002     2026-11-24 19:20:44Z
 
  - Async requests no longer follow redirects (max_redirects => 0), matching
    WWW::Crawl4AI: a 3xx fails as an api error carrying the 3xx status_code
